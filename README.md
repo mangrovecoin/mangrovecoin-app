@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+MangroveCoin
+Impact → Tokens → Microcredit, built on Base
+MangroveCoin is a Web3 MVP that rewards verified real-world activities with tokenized incentives and microcredit access.
 
-## Getting Started
+Features
+Wallet-based authentication
+Activity creation & approval
+Tokenized rewards (simulated / on-chain)
+Microcredit issuance
+Admin & user dashboards
+Base-compatible architecture
 
-First, run the development server:
+How It Works
+1. Connect Wallet
+Users connect a wallet to access the platform.
+The wallet acts as the user’s identity.
 
-```bash
+2. Create Activity
+Users submit an activity (e.g. environmental or community action).
+Status: PENDING
+Reward: 10 tokens (default)
+
+3. Admin Verification
+An admin reviews and approves the activity.
+Status changes → APPROVED
+
+4. Earn Tokens
+Approved activities mint reward tokens (currently simulated, moving on-chain).
+
+5. Exchange for Microcredit
+Users exchange earned tokens for microcredits tied to their wallet.
+
+Tech Stack
+Frontend: Next.js (App Router)
+Backend: AWS Lambda + API Gateway
+Database: DynamoDB
+Blockchain: Base (Ethereum L2)
+Auth: Wallet-based (no passwords)
+
+
+Local Development
+Prerequisites
+Node.js 18+
+Serverless Framework
+AWS credentials (or serverless-offline)
+Install
+npm install
+Run Frontend
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Run Backend (offline)
+serverless offline
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Environment Variables
+NEXT_PUBLIC_API_URL=YOUR_API_GATEWAY_URL
+NEXT_PUBLIC_CONTRACT_ADDRESS=...
+NEXT_PUBLIC_CHAIN_ID=8453
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Roadmap
+Deploy contracts on Base mainnet
+Replace scans with DynamoDB GSIs
+On-chain token minting
+Pilot with real community groups
 
-## Learn More
+Contributing
+This project is early-stage and experimental.
+ Issues, PRs, and feedback are welcome.
 
-To learn more about Next.js, take a look at the following resources:
+License
+MIT
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
