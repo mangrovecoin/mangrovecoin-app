@@ -3,10 +3,18 @@
 import { useEffect, useState } from "react";
 import axios, { AxiosError } from "axios";
 
+/* ---------------- API ---------------- */
+
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, ""),
   timeout: 15000,
 });
+
+if (!process.env.NEXT_PUBLIC_API_URL) {
+  console.error("NEXT_PUBLIC_API_URL is undefined!");
+}
+
+/* ---------------- TYPES ---------------- */
 
 interface Activity {
   activityId: string;
@@ -21,84 +29,75 @@ interface Microcredit {
   status: string;
 }
 
+/* ---------------- HELPERS ---------------- */
+
+const normalizeApiData = (data: any): any[] => {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  if (typeof data === "string") return JSON.parse(data);
+  if (typeof data?.body === "string") return JSON.parse(data.body);
+  return [];
+};
+
+const logAxiosError = (label: string, err: unknown) => {
+  const e = err as AxiosError;
+  console.error(label, {
+    message: e.message,
+    status: e.response?.status,
+    data: e.response?.data,
+  });
+};
+
+/* ---------------- STATUS STYLES ---------------- */
+
+const statusStyles: Record<string, { label: string; color: string }> = {
+  PENDING: { label: "Pending", color: "#f59e0b" },
+  VERIFIED: { label: "Verified", color: "#2563eb" },
+  APPROVED: { label: "Approved", color: "#10b981" },
+  EXCHANGED: { label: "Exchanged", color: "#a855f7" },
+  OWNED: { label: "Owned", color: "#16a34a" },
+};
+
+/* ---------------- COMPONENT ---------------- */
+
 export default function UserDashboard({ wallet }: { wallet: string }) {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [microcredits, setMicrocredits] = useState<Microcredit[]>([]);
   const [loading, setLoading] = useState(false);
   const [exchangingId, setExchangingId] = useState<string | null>(null);
-  const parseApiData = (data: any) => {
-  if (!data) return [];
-  if (typeof data === "string") return JSON.parse(data);
-  if (typeof data?.body === "string") return JSON.parse(data.body);
-  return data;
-  };
 
-  if (!process.env.NEXT_PUBLIC_API_URL) {
-    console.error("NEXT_PUBLIC_API_URL is undefined!");
-  }
+  /* ---------------- LOAD USER DATA ---------------- */
 
-  const statusStyles: Record<string, { label: string; color: string }> = {
-  PENDING: { label: "Pending", color: "#f59e0b" },     // amber
-  VERIFIED: { label: "Verified", color: "#2563eb" },   // blue
-  APPROVED: { label: "Approved", color: "#10b981" },  // green
-  EXCHANGED: { label: "Exchanged", color: "#c5a3fcff" }, // purple
-  OWNED: { label: "Owned", color: "#16a34a" },         // deep green
-  };
-
-  // ---------------- LOAD USER DATA ----------------
   const loadUserData = async (address: string) => {
-    if (!address || !process.env.NEXT_PUBLIC_API_URL) return;
+    if (!address || !api.defaults.baseURL) return;
 
     try {
-      // Ensure user exists
+      // ensure user exists
       await api.get("/user", { params: { wallet: address } });
 
-      // Fetch independently (do NOT let one failure kill both)
-      const [actsRes, microRes] = await Promise.allSettled([
+      const [acts, micros] = await Promise.allSettled([
         api.get("/user/activities", { params: { wallet: address } }),
         api.get("/microcredits", { params: { wallet: address } }),
       ]);
 
-      if (actsRes.status === "fulfilled") {
-        setActivities(actsRes.value.data || []);
+      if (acts.status === "fulfilled") {
+        setActivities(normalizeApiData(acts.value.data));
       } else {
-        console.warn("Activities fetch failed", actsRes.reason);
+        console.warn("Activities fetch failed", acts.reason);
       }
 
-      if (microRes.status === "fulfilled") {
-      const raw = microRes.value.data;
-
-      let items: any[] = [];
-
-      if (Array.isArray(raw)) {
-        items = raw;
-      } else if (typeof raw?.body === "string") {
-        items = JSON.parse(raw.body);
-      } else if (typeof raw === "string") {
-        items = JSON.parse(raw);
+      if (micros.status === "fulfilled") {
+        setMicrocredits(normalizeApiData(micros.value.data));
+      } else {
+        console.warn("Microcredits fetch failed", micros.reason);
       }
-
-      setMicrocredits(items);
-      console.log("✅ Microcredits loaded:", items);
-
-     }
-
- 
-      else {
-        console.warn("Microcredits fetch failed", microRes.reason);
-      }
-
     } catch (err) {
-      const error = err as AxiosError;
-      console.error("Load user data error:", {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-      });
+      logAxiosError("Load user data error", err);
     }
   };
 
-  // ---------------- CREATE ACTIVITY ----------------
+  /* ---------------- ACTIONS ---------------- */
+
   const createActivity = async () => {
     if (!wallet) return alert("Connect wallet first");
 
@@ -108,41 +107,38 @@ export default function UserDashboard({ wallet }: { wallet: string }) {
       alert(`Activity created: ${res.data.activityId}`);
       await loadUserData(wallet);
     } catch (err) {
-      console.error("Create activity error", err);
+      logAxiosError("Create activity error", err);
       alert("Create activity failed");
     } finally {
       setLoading(false);
     }
   };
 
-  // ---------------- EXCHANGE TOKENS ----------------
-const exchangeTokens = async (activityId: string) => {
-  if (!wallet || exchangingId) return;
+  const exchangeTokens = async (activityId: string) => {
+    if (!wallet || exchangingId) return;
 
-  setExchangingId(activityId);
-  try {
-    const res = await api.post("/exchange", { wallet, activityId });
-    alert(`Tokens exchanged: ${res.data.microId}`);
-    await loadUserData(wallet);
-  } catch (err: any) {
-    console.error("Exchange error", err);
-    alert(err.response?.data?.error || "Exchange failed");
-  } finally {
-    setExchangingId(null);
-  }
-};
-
-
-  // ---------------- EFFECT ----------------
-  useEffect(() => {
-    if (wallet && wallet.length > 10) {
-      loadUserData(wallet);
+    setExchangingId(activityId);
+    try {
+      const res = await api.post("/exchange", { wallet, activityId });
+      alert(`Tokens exchanged: ${res.data.microId}`);
+      await loadUserData(wallet);
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Exchange failed");
+    } finally {
+      setExchangingId(null);
     }
+  };
+
+  /* ---------------- EFFECT ---------------- */
+
+  useEffect(() => {
+    if (wallet?.length > 10) loadUserData(wallet);
   }, [wallet]);
 
-  // ---------------- RENDER ----------------
+  /* ---------------- RENDER ---------------- */
+
   return (
-    <div style={{ padding: "16px" }}>
+    <div style={{ padding: 16 }}>
       <h2>User Dashboard</h2>
       <p><strong>Wallet:</strong> {wallet}</p>
 
@@ -153,9 +149,8 @@ const exchangeTokens = async (activityId: string) => {
           backgroundColor: "#2563eb",
           color: "white",
           padding: "8px 12px",
-          border: "none",
-          borderRadius: "6px",
-          marginBottom: "12px",
+          borderRadius: 6,
+          marginBottom: 12,
         }}
       >
         {loading ? "Creating..." : "Create Activity"}
@@ -163,83 +158,71 @@ const exchangeTokens = async (activityId: string) => {
 
       <h3>My Activities</h3>
 
-{activities.length === 0 && <p>No activities yet</p>}
+      {activities.length === 0 && <p>No activities yet</p>}
 
-{activities.map((a) => {
-  const style = statusStyles[a.status] || {
-    label: a.status,
-    color: "#6b7280",
-  };
+      {activities.map((a) => {
+        const style = statusStyles[a.status] ?? {
+          label: a.status,
+          color: "#6b7280",
+        };
 
-  return (
-    <div
-      key={a.activityId}
-      style={{
-        border: `2px solid ${style.color}`,
-        padding: "10px",
-        marginBottom: "10px",
-        borderRadius: "6px",
-      }}
-    >
-      <p><strong>ID:</strong> {a.activityId}</p>
+        return (
+          <div
+            key={a.activityId}
+            style={{
+              border: `2px solid ${style.color}`,
+              padding: 10,
+              marginBottom: 10,
+              borderRadius: 6,
+            }}
+          >
+            <p><strong>ID:</strong> {a.activityId}</p>
+            <p>
+              <strong>Status:</strong>{" "}
+              <span style={{ color: style.color, fontWeight: "bold" }}>
+                {style.label}
+              </span>
+            </p>
+            <p><strong>Reward:</strong> {a.rewardTokens}</p>
+
+            {a.status === "APPROVED" && (
+              <button
+                disabled={exchangingId === a.activityId}
+                onClick={() => exchangeTokens(a.activityId)}
+                style={{
+                  backgroundColor: "#16a34a",
+                  color: "white",
+                  padding: "6px 10px",
+                  borderRadius: 4,
+                  marginTop: 6,
+                }}
+              >
+                {exchangingId === a.activityId
+                  ? "Exchanging..."
+                  : "Exchange to Microcredits"}
+              </button>
+            )}
+          </div>
+        );
+      })}
+
+      <h3>My Microcredits</h3>
 
       <p>
-        <strong>Status:</strong>{" "}
-        <span
-          style={{
-            color: style.color,
-            fontWeight: "bold",
-            textTransform: "uppercase",
-          }}
-        >
-          {style.label}
-        </span>
+        <strong>Total Microcredits:</strong> {microcredits.length}
       </p>
 
-      <p><strong>Reward:</strong> {a.rewardTokens}</p>
+      {microcredits.length === 0 && <p>No microcredits yet</p>}
 
-      {a.status === "APPROVED" && (
-        <button
-          disabled={exchangingId === a.activityId}
-          onClick={() => exchangeTokens(a.activityId)}
-          style={{
-            backgroundColor: "#16a34a",
-            color: "white",
-            padding: "6px 10px",
-            borderRadius: "4px",
-            marginTop: "6px",
-          }}
+      {microcredits.map((m) => (
+        <div
+          key={m.microId}
+          style={{ border: "1px solid #ccc", padding: 8, marginBottom: 8 }}
         >
-          {exchangingId === a.activityId ? "Exchanging..." : "Exchange to Microcredits"}
-        </button>
-      )}
-    </div>
-  );
-})}
-
-
-<h3>My Microcredits</h3>
-<h3>Balance Summary</h3>
-<p>
-  <strong>Total Microcredits:</strong>{" "}
-  {Array.isArray(microcredits) ? microcredits.length : 0}
-</p>
-
-{Array.isArray(microcredits) && microcredits.length === 0 && (
-  <p>No microcredits yet</p>
-)}
-
-{Array.isArray(microcredits) &&
-  microcredits.map((m) => (
-    <div
-      key={m.microId}
-      style={{ border: "1px solid #ccc", padding: "8px", marginBottom: "8px" }}
-    >
-      <p><strong>ID:</strong> {m.microId}</p>
-      <p><strong>Status:</strong> {m.status}</p>
-    </div>
-))}
-
+          <p><strong>ID:</strong> {m.microId}</p>
+          <p><strong>Status:</strong> {m.status}</p>
+        </div>
+      ))}
     </div>
   );
 }

@@ -3,144 +3,146 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 
+/* ---------------- API ---------------- */
+
+const api = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  headers: { "Content-Type": "application/json" },
+});
+
+/* ---------------- STYLES ---------------- */
+
+const cardStyle = {
+  border: "1px solid #ccc",
+  padding: "8px",
+  marginBottom: "8px",
+};
+
+const btnBase = {
+  padding: "4px 8px",
+  border: "none",
+  borderRadius: "4px",
+  cursor: "pointer",
+  color: "white",
+};
+
+const btnVerify = {
+  ...btnBase,
+  backgroundColor: "orange",
+  marginRight: "8px",
+};
+
+const btnApprove = {
+  ...btnBase,
+  backgroundColor: "green",
+};
+
+/* ---------------- COMPONENT ---------------- */
 
 export default function AdminDashboard() {
   const [pendingActivities, setPendingActivities] = useState<any[]>([]);
-  const [minting, setMinting] = useState<string | null>(null);
+  const [mintingId, setMintingId] = useState<string | null>(null);
 
-  const API = process.env.NEXT_PUBLIC_API_URL!;
+  /* ---------------- HELPERS ---------------- */
 
-  /* ---------------- ADMIN PENDING LIST ---------------- */  
-  async function loadPendingActivities() {
-  try {
-    const res = await axios.get(
-      `${API}/admin/activities/pending`
-    );
-    setPendingActivities(res.data);
-  } catch (err) {
-    console.error("Failed to load pending activities", err);
-  }
-}
+  const handleError = (label: string, err: unknown) => {
+    console.error(label, err);
+    alert(label);
+  };
 
-/* ---------------- VERIFY ---------------- */
-async function verifyActivity(activityId: string) {
-  try {
-    await axios.post(
-      `${API}/activities/${activityId}/verify`,
-      {}, // EMPTY BODY REQUIRED
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
-    );
-    alert("Activity verified!");
+  const postJson = (url: string, data = {}) =>
+    api.post(url, data);
 
-    // Update UI status locally
-    setPendingActivities((prev) =>
-      prev.map((a) =>
-        a.activityId === activityId ? { ...a, status: "VERIFIED" } : a
-      )
-    );
-  } catch (err) {
-    console.error("Failed to verify activity", err);
-    alert("Failed to verify activity");
-  }
-}
+  /* ---------------- LOAD PENDING ---------------- */
 
-/* ---------------- APPROVE ---------------- */
-   async function approveAndMint(activityId: string, wallet: string) {
-  try {
-    // Approve activity
-  await axios.post(
-    `${API}/activities/${activityId}/approve`,
-    {},
-    {
-      headers: {
-        "Content-Type": "application/json",
-      },
+  const loadPendingActivities = async () => {
+    try {
+      const res = await api.get("/admin/activities/pending");
+      setPendingActivities(res.data || []);
+    } catch (err) {
+      handleError("Failed to load pending activities", err);
     }
-  );
+  };
 
-    // Mint tokens (10 tokens as per backend)
-    setMinting(activityId);
-    await axios.post(`${API}/mint`, { wallet, amount: 10 });
-    setMinting(null);
+  /* ---------------- VERIFY ---------------- */
 
-    alert("Activity approved and tokens minted!");
+  const verifyActivity = async (activityId: string) => {
+    try {
+      await postJson(`/activities/${activityId}/verify`);
 
-    // Remove activity from list
-    setPendingActivities((prev) =>
-      prev.filter((activity) => activity.activityId !== activityId)
-    );
-  } catch (err) {
-    console.error("Failed to approve and mint", err);
-    alert("Failed to approve and mint activity");
-    setMinting(null);
-  }
-}
+      setPendingActivities((prev) =>
+        prev.map((a) =>
+          a.activityId === activityId ? { ...a, status: "VERIFIED" } : a
+        )
+      );
 
+      alert("Activity verified!");
+    } catch (err) {
+      handleError("Failed to verify activity", err);
+    }
+  };
 
-/* ---------------- LOAD PENDING ---------------- */
+  /* ---------------- APPROVE + MINT ---------------- */
+
+  const approveAndMint = async (activityId: string, wallet: string) => {
+    setMintingId(activityId);
+
+    try {
+      await postJson(`/activities/${activityId}/approve`);
+      await postJson("/mint", { wallet, amount: 10 });
+
+      setPendingActivities((prev) =>
+        prev.filter((a) => a.activityId !== activityId)
+      );
+
+      alert("Activity approved and tokens minted!");
+    } catch (err) {
+      handleError("Failed to approve and mint activity", err);
+    } finally {
+      setMintingId(null);
+    }
+  };
+
+  /* ---------------- EFFECT ---------------- */
 
   useEffect(() => {
     loadPendingActivities();
   }, []);
 
+  /* ---------------- RENDER ---------------- */
 
-/* ---------------- RENDER LOGIC ---------------- */
   return (
     <div>
       <h2>Admin Dashboard</h2>
+
+      {pendingActivities.length === 0 && <p>No pending activities</p>}
+
       {pendingActivities.map((a) => (
-  <div
-    key={a.activityId}
-    style={{
-      border: "1px solid #ccc",
-      padding: "8px",
-      marginBottom: "8px",
-    }}
-  >
-    <p><strong>ID:</strong> {a.activityId}</p>
-    <p><strong>Wallet:</strong> {a.wallet}</p>
-    <p><strong>Status:</strong> {a.status}</p>
+        <div key={a.activityId} style={cardStyle}>
+          <p><strong>ID:</strong> {a.activityId}</p>
+          <p><strong>Wallet:</strong> {a.wallet}</p>
+          <p><strong>Status:</strong> {a.status}</p>
 
-    {a.status === "PENDING" && (
-      <button
-        onClick={() => verifyActivity(a.activityId)}
-        style={{
-          marginRight: "8px",
-          backgroundColor: "orange",
-          color: "white",
-          padding: "4px 8px",
-          border: "none",
-          borderRadius: "4px",
-          cursor: "pointer",
-        }}
-      >
-        Verify
-      </button>
-    )}
+          {a.status === "PENDING" && (
+            <button
+              onClick={() => verifyActivity(a.activityId)}
+              style={btnVerify}
+            >
+              Verify
+            </button>
+          )}
 
-    {a.status === "VERIFIED" && (
-      <button
-        onClick={() => approveAndMint(a.activityId, a.wallet)}
-        style={{
-          backgroundColor: "green",
-          color: "white",
-          padding: "4px 8px",
-          border: "none",
-          borderRadius: "4px",
-          cursor: "pointer",
-        }}
-        disabled={minting === a.activityId}
-      >
-        {minting === a.activityId ? "Minting..." : "Approve & Mint"}
-      </button>
-    )}
-  </div>
-))}
-
+          {a.status === "VERIFIED" && (
+            <button
+              onClick={() => approveAndMint(a.activityId, a.wallet)}
+              style={btnApprove}
+              disabled={mintingId === a.activityId}
+            >
+              {mintingId === a.activityId ? "Minting..." : "Approve & Mint"}
+            </button>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
