@@ -1,48 +1,70 @@
+//PAGE.TSX
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { ethers } from "ethers";
-import axios from "axios";
 import UserDashboard from "./UserDashboard";
 import AdminDashboard from "./AdminDashboard";
 
+/* ---------------- TYPES ---------------- */
+
+type Role = "user" | "admin" | null;
+
+/* ---------------- ETHEREUM TYPE FIX ---------------- */
+
+declare global {
+  interface Window {
+    ethereum?: ethers.Eip1193Provider;
+  }
+}
+
+/* ---------------- CONFIG ---------------- */
+
+const ADMIN_WALLETS = [
+  "0x46448F1c1bD6Ea6A860901746ed9dEC4DaD2E804".toLowerCase(),
+];
+
+/* ---------------- PAGE ---------------- */
+
 export default function Home() {
   const [wallet, setWallet] = useState<string>("");
-  const [role, setRole] = useState<"user" | "admin" | null>(null);
-  const API = process.env.NEXT_PUBLIC_API_URL;
+  const [role, setRole] = useState<Role>(null);
+  const [connecting, setConnecting] = useState(false);
 
-  const ADMIN_WALLETS = [
-    "0x46448F1c1bD6Ea6A860901746ed9dEC4DaD2E804".toLowerCase(),
-  ];
+  /* ---------------- WALLET CONNECT ---------------- */
 
-  // ---------------- WALLET CONNECT ----------------
   const connectWallet = async () => {
-    if (typeof window === "undefined" || !window.ethereum) {
-      alert("Install MetaMask or Base Wallet to continue");
+    if (!window.ethereum) {
+      alert("Please install MetaMask or Base Wallet to continue.");
       return;
     }
 
+    setConnecting(true);
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
-
-      // Request wallet connection
       await provider.send("eth_requestAccounts", []);
       const signer = await provider.getSigner();
       const address = await signer.getAddress();
 
-      setWallet(address);
-
-      // 🔑 Ensure user exists in backend
-      if (API) {
-        await axios.get(`${API}/user`, { params: { wallet: address } });
-      }
-    } catch (err) {
-      console.error("Failed to connect wallet", err);
-      alert("Failed to connect wallet. Make sure MetaMask is unlocked.");
-    }
+    setWallet(address);
+          localStorage.setItem("wallet", address);
+        } catch (err) {
+          console.error("Wallet connection error:", err);
+          alert("Failed to connect wallet");
+        } finally {
+          setConnecting(false);
+        }
   };
 
-  // ---------------- ROLE DETECTION ----------------
+  /* ---------------- RESTORE WALLET ---------------- */
+
+  useEffect(() => {
+    const saved = localStorage.getItem("wallet");
+    if (saved) setWallet(saved);
+  }, []);
+
+  /* ---------------- ROLE DETECTION ---------------- */
+
   useEffect(() => {
     if (!wallet) {
       setRole(null);
@@ -56,29 +78,36 @@ export default function Home() {
     setRole(resolvedRole);
   }, [wallet]);
 
+  /* ---------------- UI ---------------- */
+
   return (
-    <div style={{ padding: "16px" }}>
+    <div style={{ padding: 16 }}>
       <button
         onClick={connectWallet}
+        disabled={connecting}
         style={{
-          backgroundColor: wallet ? "green" : "#2563eb",
+          backgroundColor: wallet ? "#16a34a" : "#2563eb",
           color: "white",
           padding: "8px 16px",
           border: "none",
-          borderRadius: "6px",
+          borderRadius: 6,
           cursor: "pointer",
-          marginBottom: "16px",
+          marginBottom: 16,
         }}
       >
-        {wallet ? "Connected" : "Connect Wallet"}
+        {connecting ? "Connecting..." : wallet ? "Wallet Connected" : "Connect Wallet"}
       </button>
 
-      <p><strong>Wallet:</strong> {wallet || "Not connected"}</p>
+      <p>
+        <strong>Wallet:</strong>{" "}
+        {wallet ? wallet : "Not connected"}
+      </p>
 
-      {/* Render dashboards based on role */}
+      {/* ---------------- DASHBOARDS ---------------- */}
+
       {role === "user" && <UserDashboard wallet={wallet} />}
       {role === "admin" && <AdminDashboard wallet={wallet} />}
-      {!role && wallet && <p>Loading role...</p>}
+      {!role && wallet && <p>Resolving role...</p>}
     </div>
   );
 }

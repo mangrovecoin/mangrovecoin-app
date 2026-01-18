@@ -1,0 +1,957 @@
+C:\Users\Admin\mangrovecoin\backend>npx serverless deploy
+
+Deploying mangrovecoin-backend to stage dev (us-east-1)
+
+✔ Service deployed to stack mangrovecoin-backend-dev (289s)
+
+endpoints:
+  GET - https://3m8ip0zm5k.execute-api.us-east-1.amazonaws.com/getRole
+  GET - https://3m8ip0zm5k.execute-api.us-east-1.amazonaws.com/user
+  POST - https://3m8ip0zm5k.execute-api.us-east-1.amazonaws.com/activities
+  GET - https://3m8ip0zm5k.execute-api.us-east-1.amazonaws.com/user/activities
+  POST - https://3m8ip0zm5k.execute-api.us-east-1.amazonaws.com/activities/{id}/verify
+  POST - https://3m8ip0zm5k.execute-api.us-east-1.amazonaws.com/activities/{id}/approve
+  GET - https://3m8ip0zm5k.execute-api.us-east-1.amazonaws.com/admin/activities/pending
+  POST - https://3m8ip0zm5k.execute-api.us-east-1.amazonaws.com/mint
+  POST - https://3m8ip0zm5k.execute-api.us-east-1.amazonaws.com/exchange
+  GET - https://3m8ip0zm5k.execute-api.us-east-1.amazonaws.com/microcredits
+functions:
+  getRole: mangrovecoin-backend-dev-getRole (26 MB)
+  getUser: mangrovecoin-backend-dev-getUser (26 MB)
+  createActivity: mangrovecoin-backend-dev-createActivity (26 MB)
+  getActivitiesByWallet: mangrovecoin-backend-dev-getActivitiesByWallet (26 MB)
+  verifyActivity: mangrovecoin-backend-dev-verifyActivity (26 MB)
+  approveActivity: mangrovecoin-backend-dev-approveActivity (26 MB)
+  listPendingActivities: mangrovecoin-backend-dev-listPendingActivities (26 MB)
+  mintTokens: mangrovecoin-backend-dev-mintTokens (26 MB)
+  exchange: mangrovecoin-backend-dev-exchange (26 MB)
+  getMicrocreditsByWallet: mangrovecoin-backend-dev-getMicrocreditsByWallet (26 MB)
+
+Serverless Framework V4 is now available.
+- Learn more in our README: https://github.com/serverless/serverless
+- Run "npm i serverless -g" to update
+
+service: mangrovecoin-backend
+
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+
+  environment:
+    USERS: Users-${self:provider.stage}
+    ACTIVITIES: Activities-${self:provider.stage}
+    MICRO: MicroCredits-${self:provider.stage}
+    CARBON: CarbonCredits-${self:provider.stage}
+    TXS: Transactions-${self:provider.stage}
+    SIMULATION_MODE: "false"
+
+  httpApi:
+    cors:
+      allowedOrigins:
+        - "*"
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+      allowedMethods:
+        - GET
+        - POST
+        - OPTIONS
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:Query
+          Resource:
+            - arn:aws:dynamodb:${aws:region}:*:table/*
+            - arn:aws:dynamodb:${aws:region}:*:table/*/index/*
+
+functions:
+  getRole:
+    handler: handler.getRole
+    events:
+      - httpApi:
+          path: /getRole
+          method: GET
+
+  getUser:
+    handler: handler.getUser
+    events:
+      - httpApi:
+          path: /user
+          method: GET
+
+  createActivity:
+    handler: handler.createActivity
+    events:
+      - httpApi:
+          path: /activities
+          method: POST
+
+  getActivitiesByWallet:
+    handler: handler.getActivitiesByWallet
+    events:
+      - httpApi:
+          path: /user/activities
+          method: GET
+
+  verifyActivity:
+    handler: handler.verifyActivity
+    events:
+      - httpApi:
+          path: /activities/{id}/verify
+          method: POST
+
+  approveActivity:
+    handler: handler.approveActivity
+    events:
+      - httpApi:
+          path: /activities/{id}/approve
+          method: POST
+
+  listPendingActivities:
+    handler: handler.listPendingActivities
+    events:
+      - httpApi:
+          path: /admin/activities/pending
+          method: GET
+
+  mintTokens:
+    handler: handler.mintTokens
+    events:
+      - httpApi:
+          path: /mint
+          method: POST
+
+  exchange:
+    handler: handler.exchange
+    events:
+      - httpApi:
+          path: /exchange
+          method: POST
+
+  getMicrocreditsByWallet:
+    handler: handler.getMicrocreditsByWallet
+    events:
+      - httpApi:
+          path: /microcredits
+          method: GET
+
+resources:
+  Resources:
+
+    UsersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Users-${self:provider.stage}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: walletAddress
+            AttributeType: S
+        KeySchema:
+          - AttributeName: walletAddress
+            KeyType: HASH
+
+    ActivitiesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Activities-${self:provider.stage}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: activityId
+            AttributeType: S
+          - AttributeName: wallet
+            AttributeType: S
+          - AttributeName: status
+            AttributeType: S
+          - AttributeName: createdAt
+            AttributeType: S
+        KeySchema:
+          - AttributeName: activityId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: wallet-createdAt-index
+            KeySchema:
+              - AttributeName: wallet
+                KeyType: HASH
+              - AttributeName: createdAt
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+          - IndexName: status-createdAt-index
+            KeySchema:
+              - AttributeName: status
+                KeyType: HASH
+              - AttributeName: createdAt
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+
+    MicroCreditsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: MicroCredits-${self:provider.stage}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: microId
+            AttributeType: S
+          - AttributeName: owner
+            AttributeType: S
+          - AttributeName: createdAt
+            AttributeType: S
+          - AttributeName: sourceActivityId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: microId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: owner-createdAt-index
+            KeySchema:
+              - AttributeName: owner
+                KeyType: HASH
+              - AttributeName: createdAt
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+          - IndexName: activity-index
+            KeySchema:
+              - AttributeName: sourceActivityId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+
+    TransactionsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Transactions-${self:provider.stage}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: transactionsId
+            AttributeType: S
+          - AttributeName: wallet
+            AttributeType: S
+          - AttributeName: type
+            AttributeType: S
+        KeySchema:
+          - AttributeName: transactionsId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: wallet-type-index
+            KeySchema:
+              - AttributeName: wallet
+                KeyType: HASH
+              - AttributeName: type
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+
+package:
+  patterns:
+    - 'abi/**/*.json'
+
+//HANDLER.JS
+const AWS = require("aws-sdk");
+const crypto = require("crypto");
+
+const { ethers } = require("ethers");
+
+const dynamo = new AWS.DynamoDB.DocumentClient();
+
+const headers = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type,Authorization",
+};
+
+const now = () => new Date().toISOString();
+const id = () => crypto.randomUUID();
+
+const response = (statusCode, body) => ({
+  statusCode,
+  headers,
+  body: JSON.stringify(body),
+});
+
+const parseBody = (event) => JSON.parse(event.body || "{}");
+
+const requireWallet = (wallet) => {
+  if (!wallet) throw new Error("wallet required");
+};
+
+const getItem = (TableName, Key) =>
+  dynamo.get({ TableName, Key }).promise();
+
+const putItem = (TableName, Item) =>
+  dynamo.put({ TableName, Item }).promise();
+
+const updateItem = (params) =>
+  dynamo.update(params).promise();
+
+/* ---------------- CREATE ACTIVITY ---------------- */
+
+exports.createActivity = async (event) => {
+  try {
+    const { wallet } = parseBody(event);
+    requireWallet(wallet);
+
+    const activity = {
+      activityId: id(),
+      wallet,
+      status: "PENDING",
+      rewardTokens: 10,
+      createdAt: now(),
+    };
+
+    await putItem(process.env.ACTIVITIES, activity);
+    return response(200, activity);
+  } catch (err) {
+    return response(400, { error: err.message });
+  }
+};
+
+/* ---------------- VERIFY ACTIVITY ---------------- */
+
+exports.verifyActivity = async (event) => {
+  await updateItem({
+    TableName: process.env.ACTIVITIES,
+    Key: { activityId: event.pathParameters.id },
+    UpdateExpression: "SET #s = :v",
+    ExpressionAttributeNames: { "#s": "status" },
+    ExpressionAttributeValues: { ":v": "VERIFIED" },
+  });
+
+  return response(200, { success: true });
+};
+
+/* ---------------- APPROVE ACTIVITY ---------------- */
+
+exports.approveActivity = async (event) => {
+  const activityId = event.pathParameters.id;
+
+  await updateItem({
+    TableName: process.env.ACTIVITIES,
+    Key: { activityId },
+    UpdateExpression: "SET #s = :v",
+    ExpressionAttributeNames: { "#s": "status" },
+    ExpressionAttributeValues: { ":v": "APPROVED" },
+  });
+
+  return response(200, { success: true });
+};
+
+/* ---------------- EXCHANGE ---------------- */
+
+exports.exchange = async (event) => {
+  try {
+    const { wallet, activityId } = parseBody(event);
+    requireWallet(wallet);
+
+    const activityRes = await getItem(process.env.ACTIVITIES, { activityId });
+    const activity = activityRes.Item;
+
+    if (!activity || activity.wallet !== wallet)
+      throw new Error("Invalid activity");
+
+    if (activity.status !== "APPROVED")
+      throw new Error("Activity not approved");
+
+    await updateItem({
+      TableName: process.env.ACTIVITIES,
+      Key: { activityId },
+      ConditionExpression: "#s = :approved",
+      UpdateExpression: "SET #s = :exchanged",
+      ExpressionAttributeNames: { "#s": "status" },
+      ExpressionAttributeValues: {
+        ":approved": "APPROVED",
+        ":exchanged": "EXCHANGED",
+      },
+    });
+
+    const microId = id();
+
+    await putItem(process.env.MICRO, {
+      microId,
+      owner: wallet,
+      sourceActivityId: activityId,
+      status: "OWNED",
+      createdAt: now(),
+    });
+
+    return response(200, { success: true, microId });
+  } catch (err) {
+    return response(400, { error: err.message });
+  }
+};
+
+/* ---------------- LIST PENDING ---------------- */
+
+exports.listPendingActivities = async () => {
+  const res = await dynamo.query({
+    TableName: process.env.ACTIVITIES,
+    IndexName: "status-createdAt-index",
+    KeyConditionExpression: "#s = :p",
+    ExpressionAttributeNames: { "#s": "status" },
+    ExpressionAttributeValues: { ":p": "PENDING" },
+    ScanIndexForward: false,
+  }).promise();
+
+  return response(200, res.Items || []);
+};
+
+/* ---------------- MINT TOKEN ---------------- */
+
+exports.mintTokens = async (event) => {
+  try {
+    const { wallet, amount } = JSON.parse(event.body || "{}");
+    if (!wallet || !amount) throw new Error("wallet and amount required");
+
+    const token = require("./lib/token"); // lazy import
+    await token.mint(wallet, amount);
+
+    return response(200, { success: true });
+  } catch (err) {
+    return response(400, { error: err.message });
+  }
+};
+
+/* ---------------- BURN ---------------- */
+
+exports.burnTokens = async (event) => {
+  const { wallet, amount } = JSON.parse(event.body || "{}");
+  const token = require("./lib/token");
+  await token.burnFrom(wallet, amount);
+};
+
+/* ---------------- USER ---------------- */
+
+exports.getUser = async (event) => {
+  try {
+    const wallet = event.queryStringParameters?.wallet;
+    requireWallet(wallet);
+
+    const res = await getItem(process.env.USERS, { walletAddress: wallet });
+
+    if (!res.Item) {
+      const user = {
+        walletAddress: wallet,
+        role: "user",
+        kycStatus: "PENDING",
+        createdAt: now(),
+      };
+      await putItem(process.env.USERS, user);
+      return response(200, user);
+    }
+
+    return response(200, res.Item);
+  } catch (err) {
+    return response(400, { error: err.message });
+  }
+};
+
+
+// backend/lib/token.js
+const { ethers } = require("ethers");
+const path = require("path");
+
+/* ---------- CONFIG ---------- */
+
+const RPC_URL = process.env.BASE_SEPOLIA_RPC; // Base / Base Sepolia RPC
+const PRIVATE_KEY = process.env.ADMIN_PRIVATE_KEY; // admin signer
+const TOKEN_ADDRESS = process.env.MANG_TOKEN_ADDRESS;
+
+/* ---------- ABI ---------- */
+
+const abi = require(path.join(__dirname, "../abi/MangroveToken.json"));
+
+/* ---------- SINGLETONS ---------- */
+
+let provider;
+let wallet;
+let contract;
+
+/* ---------- INIT ---------- */
+
+function getContract() {
+  if (!RPC_URL || !PRIVATE_KEY || !TOKEN_ADDRESS) {
+    throw new Error("Missing blockchain environment variables");
+  }
+
+  if (!provider) {
+    provider = new ethers.JsonRpcProvider(RPC_URL);
+  }
+
+  if (!wallet) {
+    wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+  }
+
+  if (!contract) {
+    contract = new ethers.Contract(TOKEN_ADDRESS, abi, wallet);
+  }
+
+  return contract;
+}
+
+/* ---------- ACTIONS ---------- */
+
+async function mint(to, amount) {
+  const token = getContract();
+  const tx = await token.mint(to, amount);
+  return tx.wait();
+}
+
+async function burnFrom(user, amount) {
+  const token = getContract();
+  const tx = await token.adminBurnFrom(user, amount);
+  return tx.wait();
+}
+
+module.exports = {
+  mint,
+  burnFrom,
+};
+
+
+// ../ABI/MangroveTokenABI.json
+[
+  {
+    "inputs": [
+      { "internalType": "address", "name": "to", "type": "address" },
+      { "internalType": "uint256", "name": "amount", "type": "uint256" }
+    ],
+    "name": "mint",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "user", "type": "address" },
+      { "internalType": "uint256", "name": "amount", "type": "uint256" }
+    ],
+    "name": "adminBurnFrom",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]
+
+# Blockchain
+BASE_SEPOLIA_RPC=https://base-sepolia.g.alchemy.com/v2/mna6G1qwvQmI02eWhBmhH
+MANG_TOKEN_ADDRESS=0x36b2A39f30Ab6f6949d572Bbd16760a7D1f63939
+ADMIN_PRIVATE_KEY=XQR6JRVE8HQNVIWVQ3VE29UPWD3PVAUC4E
+
+# DynamoDB tables
+ACTIVITIES=Activities
+MICRO=MicroCredits
+USERS=Users
+TXS=Transactions
+CARBON=CarbonCredits
+
+#SECRET_NAME=mangrovecoin/secrets
+
+//PAGE.TSX
+"use client";
+
+import { useEffect, useState } from "react";
+import { ethers } from "ethers";
+import UserDashboard from "./UserDashboard";
+import AdminDashboard from "./AdminDashboard";
+
+/* ---------------- TYPES ---------------- */
+
+type Role = "user" | "admin" | null;
+
+/* ---------------- ETHEREUM TYPE FIX ---------------- */
+
+declare global {
+  interface Window {
+    ethereum?: ethers.Eip1193Provider;
+  }
+}
+
+/* ---------------- CONFIG ---------------- */
+
+const ADMIN_WALLETS = [
+  "0x46448F1c1bD6Ea6A860901746ed9dEC4DaD2E804".toLowerCase(),
+];
+
+/* ---------------- PAGE ---------------- */
+
+export default function Home() {
+  const [wallet, setWallet] = useState<string>("");
+  const [role, setRole] = useState<Role>(null);
+  const [connecting, setConnecting] = useState(false);
+
+  /* ---------------- WALLET CONNECT ---------------- */
+
+  const connectWallet = async () => {
+    if (!window.ethereum) {
+      alert("Please install MetaMask or Base Wallet to continue.");
+      return;
+    }
+
+    setConnecting(true);
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      await provider.send("eth_requestAccounts", []);
+      const signer = await provider.getSigner();
+      const address = await signer.getAddress();
+
+    setWallet(address);
+          localStorage.setItem("wallet", address);
+        } catch (err) {
+          console.error("Wallet connection error:", err);
+          alert("Failed to connect wallet");
+        } finally {
+          setConnecting(false);
+        }
+  };
+
+  /* ---------------- RESTORE WALLET ---------------- */
+
+  useEffect(() => {
+    const saved = localStorage.getItem("wallet");
+    if (saved) setWallet(saved);
+  }, []);
+
+  /* ---------------- ROLE DETECTION ---------------- */
+
+  useEffect(() => {
+    if (!wallet) {
+      setRole(null);
+      return;
+    }
+
+    const resolvedRole = ADMIN_WALLETS.includes(wallet.toLowerCase())
+      ? "admin"
+      : "user";
+
+    setRole(resolvedRole);
+  }, [wallet]);
+
+  /* ---------------- UI ---------------- */
+
+  return (
+    <div style={{ padding: 16 }}>
+      <button
+        onClick={connectWallet}
+        disabled={connecting}
+        style={{
+          backgroundColor: wallet ? "#16a34a" : "#2563eb",
+          color: "white",
+          padding: "8px 16px",
+          border: "none",
+          borderRadius: 6,
+          cursor: "pointer",
+          marginBottom: 16,
+        }}
+      >
+        {connecting ? "Connecting..." : wallet ? "Wallet Connected" : "Connect Wallet"}
+      </button>
+
+      <p>
+        <strong>Wallet:</strong>{" "}
+        {wallet ? wallet : "Not connected"}
+      </p>
+
+      {/* ---------------- DASHBOARDS ---------------- */}
+
+      {role === "user" && <UserDashboard wallet={wallet} />}
+      {role === "admin" && <AdminDashboard wallet={wallet} />}
+      {!role && wallet && <p>Resolving role...</p>}
+    </div>
+  );
+}
+
+
+//USERDASHBOARD
+"use client";
+
+import { useEffect, useState } from "react";
+import axios, { AxiosError } from "axios";
+
+/* ---------------- API ---------------- */
+
+const api = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  headers: { "Content-Type": "application/json" },
+});
+
+/* ---------------- TYPES ---------------- */
+
+export interface Activity {
+  activityId: string;
+  wallet: string;
+  status: "PENDING" | "VERIFIED" | "APPROVED" | "EXCHANGED" | string;
+  rewardTokens: number;
+}
+
+export interface Microcredit {
+  microId: string;
+  owner: string;
+  status: "OWNED" | string;
+}
+
+/* ---------------- STATUS STYLES ---------------- */
+
+const statusStyles: Record<string, { label: string; color: string }> = {
+  PENDING: { label: "Pending", color: "#f59e0b" },
+  VERIFIED: { label: "Verified", color: "#2563eb" },
+  APPROVED: { label: "Approved", color: "#10b981" },
+  EXCHANGED: { label: "Exchanged", color: "#a855f7" },
+  OWNED: { label: "Owned", color: "#16a34a" },
+};
+
+/* ---------------- COMPONENT ---------------- */
+
+interface UserDashboardProps {
+  wallet: string;
+}
+
+export default function UserDashboard({ wallet }: UserDashboardProps) {
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [microcredits, setMicrocredits] = useState<Microcredit[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [exchangingId, setExchangingId] = useState<string | null>(null);
+
+  const loadUserData = async (address: string) => {
+    if (!address || !api.defaults.baseURL) return;
+
+    try {
+      // ensure user exists
+      await api.get("/user", { params: { wallet: address } });
+
+      const [acts, micros] = await Promise.allSettled([
+        api.get<Activity[]>("/user/activities", { params: { wallet: address } }),
+        api.get<Microcredit[]>("/microcredits", { params: { wallet: address } }),
+      ]);
+
+      if (acts.status === "fulfilled") setActivities(acts.value.data ?? []);
+      if (micros.status === "fulfilled") setMicrocredits(micros.value.data ?? []);
+    } catch (err) {
+      console.error("Load user data error", err);
+    }
+  };
+
+  const createActivity = async () => {
+    if (!wallet) return alert("Connect wallet first");
+    setLoading(true);
+    try {
+      const res = await api.post<{ activityId: string }>("/activities", { wallet });
+      alert(`Activity created: ${res.data.activityId}`);
+      await loadUserData(wallet);
+    } catch (err) {
+      console.error("Create activity error", err);
+      alert("Create activity failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const exchangeTokens = async (activityId: string) => {
+    if (!wallet || exchangingId) return;
+    setExchangingId(activityId);
+    try {
+      const res = await api.post<{ microId: string }>("/exchange", { wallet, activityId });
+      alert(`Tokens exchanged: ${res.data.microId}`);
+      await loadUserData(wallet);
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Exchange failed");
+    } finally {
+      setExchangingId(null);
+    }
+  };
+
+  useEffect(() => {
+    if (wallet) loadUserData(wallet);
+  }, [wallet]);
+
+  return (
+    <div style={{ padding: 16 }}>
+      <h2>User Dashboard</h2>
+      <p><strong>Wallet:</strong> {wallet}</p>
+
+      <button
+        onClick={createActivity}
+        disabled={loading}
+        style={{
+          backgroundColor: "#2563eb",
+          color: "white",
+          padding: "8px 12px",
+          borderRadius: 6,
+          marginBottom: 12,
+        }}
+      >
+        {loading ? "Creating..." : "Create Activity"}
+      </button>
+
+      <h3>My Activities</h3>
+      {activities.length === 0 && <p>No activities yet</p>}
+      {activities.map((a) => {
+        const style = statusStyles[a.status] ?? { label: a.status, color: "#6b7280" };
+        return (
+          <div key={a.activityId} style={{ border: `2px solid ${style.color}`, padding: 10, marginBottom: 10, borderRadius: 6 }}>
+            <p><strong>ID:</strong> {a.activityId}</p>
+            <p><strong>Status:</strong> <span style={{ color: style.color, fontWeight: "bold" }}>{style.label}</span></p>
+            <p><strong>Reward:</strong> {a.rewardTokens}</p>
+
+            {a.status === "APPROVED" && (
+              <button
+                disabled={exchangingId === a.activityId}
+                onClick={() => exchangeTokens(a.activityId)}
+                style={{ backgroundColor: "#16a34a", color: "white", padding: "6px 10px", borderRadius: 4, marginTop: 6 }}
+              >
+                {exchangingId === a.activityId ? "Exchanging..." : "Exchange to Microcredits"}
+              </button>
+            )}
+          </div>
+        );
+      })}
+
+      <h3>My Microcredits</h3>
+      <p><strong>Total Microcredits:</strong> {microcredits.length}</p>
+      {microcredits.length === 0 && <p>No microcredits yet</p>}
+      {microcredits.map((m) => (
+        <div key={m.microId} style={{ border: "1px solid #ccc", padding: 8, marginBottom: 8 }}>
+          <p><strong>ID:</strong> {m.microId}</p>
+          <p><strong>Status:</strong> {m.status}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
+//ADMINDASHBOARD
+"use client";
+
+import { useEffect, useState } from "react";
+import axios from "axios";
+
+/* ---------------- API ---------------- */
+
+const api = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  headers: { "Content-Type": "application/json" },
+});
+
+/* ---------------- TYPES ---------------- */
+
+export interface PendingActivity {
+  activityId: string;
+  wallet: string;
+  status: "PENDING" | "VERIFIED" | string;
+}
+
+/* ---------------- STYLES ---------------- */
+
+const cardStyle = { border: "1px solid #ccc", padding: 8, marginBottom: 8 };
+const btnBase = { padding: "4px 8px", border: "none", borderRadius: 4, cursor: "pointer", color: "white" };
+const btnVerify = { ...btnBase, backgroundColor: "orange", marginRight: 8 };
+const btnApprove = { ...btnBase, backgroundColor: "green" };
+
+/* ---------------- COMPONENT ---------------- */
+
+interface AdminDashboardProps {
+  wallet: string;
+}
+
+export default function AdminDashboard({ wallet }: AdminDashboardProps) {
+  const [pendingActivities, setPendingActivities] = useState<PendingActivity[]>([]);
+  const [mintingId, setMintingId] = useState<string | null>(null);
+
+  const handleError = (label: string, err: unknown) => {
+    console.error(label, err);
+    alert(label);
+  };
+
+  const listPendingActivities = async () => {
+    try {
+      const res = await api.get<PendingActivity[]>("/admin/activities/pending");
+      setPendingActivities(res.data ?? []);
+    } catch (err) {
+      handleError("Failed to load pending activities", err);
+    }
+  };
+
+  const verifyActivity = async (activityId: string) => {
+    try {
+      await api.post(`/activities/${activityId}/verify`);
+      setPendingActivities(prev => prev.map(a => a.activityId === activityId ? { ...a, status: "VERIFIED" } : a));
+      alert("Activity verified!");
+    } catch (err) {
+      handleError("Failed to verify activity", err);
+    }
+  };
+
+  const approveAndMint = async (activityId: string, wallet: string) => {
+    setMintingId(activityId);
+    try {
+      await api.post(`/activities/${activityId}/approve`);
+      await api.post("/mint", { wallet, amount: 10 });
+      setPendingActivities(prev => prev.filter(a => a.activityId !== activityId));
+      alert("Activity approved and tokens minted!");
+    } catch (err) {
+      handleError("Failed to approve and mint activity", err);
+    } finally {
+      setMintingId(null);
+    }
+  };
+
+  useEffect(() => { listPendingActivities(); }, []);
+
+  return (
+    <div>
+      <h2>Admin Dashboard</h2>
+      {pendingActivities.length === 0 && <p>No pending activities</p>}
+      {pendingActivities.map(a => (
+        <div key={a.activityId} style={cardStyle}>
+          <p><strong>ID:</strong> {a.activityId}</p>
+          <p><strong>Wallet:</strong> {a.wallet}</p>
+          <p><strong>Status:</strong> {a.status}</p>
+
+          {a.status === "PENDING" && <button onClick={() => verifyActivity(a.activityId)} style={btnVerify}>Verify</button>}
+
+          {a.status === "VERIFIED" && (
+            <button onClick={() => approveAndMint(a.activityId, a.wallet)} style={btnApprove} disabled={mintingId === a.activityId}>
+              {mintingId === a.activityId ? "Minting..." : "Approve & Mint"}
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
+BASE_SEPOLIA_RPC_URL=https://base-sepolia.g.alchemy.com/v2/mna6G1qwvQmI02eWhBmhH
+PRIVATE_KEY=636d95a431dc75ea73a050237c9a7d4c8d448fc3cf0a10238e282f105d3e36e6
+BASE_SEPOLIA_API_KEY=XQR6JRVE8HQNVIWVQ3VE29UPWD3PVAUC4E
+MANG_TOKEN_ADDRESS=0x36b2A39f30Ab6f6949d572Bbd16760a7D1f63939
+
+
+require("@nomicfoundation/hardhat-toolbox");
+require("@nomicfoundation/hardhat-verify");
+require("dotenv").config();
+
+module.exports = {
+  solidity: "0.8.20",
+  networks: {
+    baseSepolia: {
+      url: process.env.BASE_SEPOLIA_RPC_URL,
+      accounts: [process.env.PRIVATE_KEY],
+    },
+  },
+  etherscan: {
+    // Use a single API key for V2
+    apiKey: process.env.BASE_SEPOLIA_API_KEY,
+  },
+};
+
