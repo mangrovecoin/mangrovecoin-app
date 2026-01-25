@@ -11,6 +11,12 @@ MangroveCoin enables:
 - Onchain approval and token minting
 - Transparent tracking of impact and rewards
 
+## What it does
+- Mints ERC-20 tokens for verified climate actions
+- Uses role-based access (Admin / Verifier)
+- Prevents proof reuse
+- Designed for low-cost micro-rewards on Base
+
 ## ⚙️ How It Works
 1. User submits an environmental activity
 2. Admin verifies and approves the activity
@@ -19,13 +25,17 @@ MangroveCoin enables:
 
 ## 🔗 Deployed Contract
 - Network: Base Sepolia
-- Address: `0xf8F079BB43E521bb7682BFAb617b7D2925aeCACB`
+- Address: 
+https://sepolia.basescan.org/address/0x86917508491Cc3Db4F42052F5070F3fc70Cc64b4#code
 
 ## 🛠 Tech Stack
 - Base (Ethereum L2)
-- Solidity
 - AWS Lambda + DynamoDB
 - Next.js (Admin & User Dashboards)
+- Solidity 0.8.20
+- Hardhat
+- OpenZeppelin
+- Base Sepolia
 
 ## 🚀 Roadmap
 - Base mainnet deployment
